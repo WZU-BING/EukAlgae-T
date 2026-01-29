@@ -1,1 +1,160 @@
-> 🚧 项目代码正在整理与规范化中，即将开源，敬请期待
+> 🚧 项目代码正在整理与规范化中
+#!/bin/bash
+
+# Function to process files: remove interval parts from Contig IDs
+process_file() {
+    local file="$1"
+    awk '{
+        # Extract base Contig ID (remove interval part)
+        if (NF >= 2 && $2 ~ /:/) {
+            split($2, arr, ":")
+            $2 = arr[1]
+        }
+
+        # Reconstruct line (preserve original format)
+        printf "%s", $1
+        for (i=2; i<=NF; i++) {
+            printf " %s", $i
+        }
+        printf "\n"
+    }' "$file" > tmpfile && mv tmpfile "$file"
+}
+
+# Function to process files with mapping data
+process_with_mapping() {
+    local input_file="$1"
+    local tmp_file="${input_file}.tmp"
+    
+    awk '
+    BEGIN {
+        FS = "\t";
+        OFS = "\t";
+        mapped_count = 0
+    }
+    NR==FNR {
+        if (NF >= 4) {
+            key = $2
+            map_name[key] = $3
+            map_data[key] = $4
+            for (i=5; i<=NF; i++) {
+                map_data[key] = map_data[key] " " $i
+            }
+        }
+        next
+    }
+    {
+        # Standardize input format (convert spaces to tabs)
+        gsub(/[[:space:]]+/, "\t")
+
+        # Extract base Contig ID
+        contig_id = $2
+        if ($1 ~ /:/) {
+            split($2, arr, ":")
+            contig_id = arr[1]
+        }
+
+        # Match species information
+        species = (contig_id in map_name) ? map_name[contig_id] : ""
+        numbers = (contig_id in map_data) ? map_data[contig_id] : ""
+
+        # Output results
+        printf "%s\t%s\t%s\t%s\n", $1, $2, species, numbers
+
+        # Track matching statistics
+        if (species != "") mapped_count++
+    }
+    END {
+        # Print processing statistics
+        printf "Processed %s: total lines=%d, mapped=%d (%.1f%%)\n",
+            FILENAME, NR, mapped_count, (mapped_count/NR)*100 > "/dev/stderr"
+    }' ALGAE_NAME_ID4.updated <(tr ' ' '\t' < "$input_file") > "$tmp_file"
+
+    mv -v "$tmp_file" "$input_file"
+}
+
+INDEX="ALGAE.fna"
+
+# Check if index file exists
+[ ! -f "$INDEX" ] && { echo "Index file $INDEX does not exist!"; exit 1; }
+
+# Function to count FASTQ reads (compatible with single and paired-end)
+count_fastq_reads() {
+    awk 'NR%4==1' "$1" | wc -l
+}
+
+declare -a processed_files  # Track processed files
+
+# Process paired-end files
+for f1 in *_1.fastq; do
+    base_name=${f1%_1.fastq}
+    f2="${base_name}_2.fastq"
+
+    if [ -f "$f2" ]; then
+        # Count reads
+        reads_count=$(count_fastq_reads "$f1")
+        echo "Processing paired-end files: $f1 and $f2 (reads count: $reads_count)"
+
+        # Perform alignment
+        sam_file="${base_name}_reads${reads_count}.sam"
+        bowtie2 -x "$INDEX" -1 "$f1" -2 "$f2" -S "$sam_file" -p 8 || { echo "Alignment failed"; continue; }
+
+        # Key modification: Add MAPQ≥30 filter + keep best match for each read
+        txt_file="${sam_file%.sam}.txt"
+        samtools view -F 4 "$sam_file" | \
+            awk 'BEGIN{OFS="\t"} $5 >= 30 {print $1, $3, $5}' | \
+            sort -k1,1 -k3,3nr | \
+            awk 'BEGIN{OFS="\t"} !seen[$1]++ {print $1, $2}' > "$txt_file"
+        rm "$sam_file"
+
+        # Post-processing
+        process_file "$txt_file"
+        process_with_mapping "$txt_file"
+
+        echo "Completed processing paired-end files: $base_name"
+        processed_files+=("$f1" "$f2")
+    fi
+done
+
+# Process single-end files
+for f in *.fastq; do
+    # Skip already processed paired-end files
+    [[ " ${processed_files[@]} " =~ " $f " ]] && continue
+
+    # Count reads
+    reads_count=$(count_fastq_reads "$f")
+    echo "Processing single-end file: $f (reads count: $reads_count)"
+
+    # Perform alignment
+    base_name="${f%.*}"
+    sam_file="${base_name}_reads${reads_count}.sam"
+    bowtie2 -x "$INDEX" -U "$f" -S "$sam_file" -p 8 || { echo "Alignment failed"; continue; }
+
+    # Key modification: Add MAPQ≥30 filter + keep best match for each read
+    txt_file="${sam_file%.sam}.txt"
+    samtools view -F 4 "$sam_file" | \
+        awk 'BEGIN{OFS="\t"} $5 >= 30 {print $1, $3, $5}' | \
+        sort -k1,1 -k3,3nr | \
+        awk 'BEGIN{OFS="\t"} !seen[$1]++ {print $1, $2}' > "$txt_file"
+    rm "$sam_file"
+
+    # Post-processing
+    process_file "$txt_file"
+    process_with_mapping "$txt_file"
+
+    echo "Completed processing single-end file: $f"
+done
+
+# Generate algal species statistics
+echo "Generating algal species statistics..."
+awk -F'\t' '
+    $3 != "" {
+        count[$3]++
+    }
+    END {
+        print "Algal Species\tReads Count"
+        for (species in count) {
+            print species "\t" count[species]
+        }
+    }' *_reads*.txt > algae_species_counts.tsv
+
+echo "All files processed! Results saved to algae_species_counts.tsv"
