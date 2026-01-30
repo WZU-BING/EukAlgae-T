@@ -61,7 +61,16 @@ GCA_000002595.3 CM008962.1 Chlamydomonas reinhardtii 3055 3052 ...
  - Paired-end sequencing files: name as *_1.fastq and *_2.fastq
  - Single-end sequencing files: name as *.fastq
 
-2. Run the script:
+2. **Build Bowtie2 index** (must be done before running the pipeline):
+```bash
+# Build index for the ALGAE.fna database
+bowtie2-build ALGAE.fna ALGAE.fna
+
+# This will create index files with prefix "ALGAE.fna":
+# ALGAE.fna.1.bt2, ALGAE.fna.2.bt2, ALGAE.fna.3.bt2, ALGAE.fna.4.bt2
+# ALGAE.fna.rev.1.bt2, ALGAE.fna.rev.2.bt2
+```
+3. Run the script:
 ```bash
 # Grant execute permission
 chmod +x EukAlgae-T
@@ -70,7 +79,7 @@ chmod +x EukAlgae-T
 ./EukAlgae-T
 ```
 
-3. Output files:
+4. Output files:
  - For each input FASTQ file, the following will be generated:
    - *_reads{count}.txt: Processed alignment results, including read ID, Contig ID, species information, and taxonomic IDs
  - Final summary file:
