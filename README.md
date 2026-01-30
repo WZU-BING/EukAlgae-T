@@ -1,3 +1,4 @@
+```markdown
 # EukAlgae-T: Eukaryotic Algae Taxonomic Database and Analysis Pipeline
 
 ## Project Introduction
@@ -27,19 +28,19 @@ This is a Bash script containing the complete analysis pipeline:
 - Format: FASTA format
 - Content: Gene or genomic fragment sequences of eukaryotic algae
 - Example record:
-CM008975.1:1217364-1224756
+```
+>CM008975.1:1217364-1224756
 atggccacggcggctggccgctccagagagccgacgcccagcacgatgcgcacctggcac...
-
-text
+```
 Sequence identifiers include genome accession numbers and position information
 
 **ALGAE_NAME_ID4.updated - Species Annotation File**
 - Format: Tab-separated text file
 - Content: Maps sequence identifiers to species classification information
 - Example record:
+```
 GCA_000002595.3 CM008962.1 Chlamydomonas reinhardtii 3055 3052 ...
-
-text
+```
 - Column 1: Genome accession number
 - Column 2: Sequence identifier (SOG GenBank query number with position information removed, corresponding to IDs in ALGAE.fna)
 - Column 3: Species name (e.g., Chlamydomonas reinhardtii)
@@ -54,11 +55,11 @@ text
 
 ### Running the Pipeline
 1. Prepare data: Place all files in the same directory
-   - EukAlgae-T (script file)
-   - ALGAE.fna (database file)
-   - ALGAE_NAME_ID4.updated (annotation file)
-   - Paired-end sequencing files: name as *_1.fastq and *_2.fastq
-   - Single-end sequencing files: name as *.fastq
+ - EukAlgae-T (script file)
+ - ALGAE.fna (database file)
+ - ALGAE_NAME_ID4.updated (annotation file)
+ - Paired-end sequencing files: name as *_1.fastq and *_2.fastq
+ - Single-end sequencing files: name as *.fastq
 
 2. Run the script:
 ```bash
@@ -67,20 +68,17 @@ chmod +x EukAlgae-T
 
 # Run the script
 ./EukAlgae-T
-Output files:
+```
 
-For each input FASTQ file, the following will be generated:
+3. Output files:
+ - For each input FASTQ file, the following will be generated:
+   - *_reads{count}.txt: Processed alignment results, including read ID, Contig ID, species information, and taxonomic IDs
+ - Final summary file:
+   - algae_species_counts.tsv: Statistical table of algal species across all samples
 
-*_reads{count}.txt: Processed alignment results, including read ID, Contig ID, species information, and taxonomic IDs
-
-Final summary file:
-
-algae_species_counts.tsv: Statistical table of algal species across all samples
-
-Usage Example
+### Usage Example
 Assume the following file structure:
-
-text
+```
 working_directory/
 ├── EukAlgae-T (script)
 ├── ALGAE.fna (database)
@@ -88,50 +86,50 @@ working_directory/
 ├── sample1_1.fastq
 ├── sample1_2.fastq
 ├── sample2.fastq
+```
+
 After running the script, the following will be generated:
+- sample1_reads100000.txt (assuming 100,000 reads)
+- sample2_reads50000.txt (assuming 50,000 reads)
+- algae_species_counts.tsv: Summary of species statistics across all samples
 
-sample1_reads100000.txt (assuming 100,000 reads)
-
-sample2_reads50000.txt (assuming 50,000 reads)
-
-algae_species_counts.tsv: Summary of species statistics across all samples
-
-Output Description
-Intermediate File Format (Example):
-text
+## Output Description
+### Intermediate File Format (Example):
+```
 ReadID    ContigID     SpeciesName              TaxonomicIDs
 read1    CM008962.1    Chlamydomonas reinhardtii    3055 3052 ...
-Final Statistics File (algae_species_counts.tsv):
-text
+```
+
+### Final Statistics File (algae_species_counts.tsv):
+```
 Algal Species          Reads Count
 Chlamydomonas reinhardtii   1500
 Thalassiosira pseudonana    800
 ...
-Customization and Extension
-Modifying Filter Thresholds
+```
+
+## Customization and Extension
+### Modifying Filter Thresholds
 The script defaults to MAPQ≥30 as the filter threshold. Modify at:
-
-bash
+```bash
 awk 'BEGIN{OFS="\t"} $5 >= 30 {print $1, $3, $5}'  # Change 30 to other value
-Adjusting Thread Count
+```
+
+### Adjusting Thread Count
 The script defaults to 8 threads for Bowtie2. Modify at:
-
-bash
+```bash
 bowtie2 -x "$INDEX" -1 "$f1" -2 "$f2" -S "$sam_file" -p 8  # Change 8 to other value
-Using Other Databases
+```
+
+### Using Other Databases
 If using other databases, ensure:
+1. Database files are in FASTA format
+2. Annotation file format is consistent with ALGAE_NAME_ID4.updated
+3. Modify the INDEX variable in the script to point to the new database file
 
-Database files are in FASTA format
-
-Annotation file format is consistent with ALGAE_NAME_ID4.updated
-
-Modify the INDEX variable in the script to point to the new database file
-
-Notes
-Ensure Bowtie2 and SAMtools are correctly installed and in PATH
-
-Adequate disk space is required for intermediate files
-
-Paired-end sequencing files must follow the *_1.fastq and *_2.fastq naming convention
-
-All files (script, database, annotation file, sequencing files) must be in the same directory
+## Notes
+1. Ensure Bowtie2 and SAMtools are correctly installed and in PATH
+2. Adequate disk space is required for intermediate files
+3. Paired-end sequencing files must follow the *_1.fastq and *_2.fastq naming convention
+4. All files (script, database, annotation file, sequencing files) must be in the same directory
+```
